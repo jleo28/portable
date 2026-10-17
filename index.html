@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PortAble</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<style>
+/* Layout: a planner's console. Fixed header + progress rail, a live gate strip, then one stage that changes per step. */
+:root {
+  --bg: #eaeef1; --surface: #ffffff; --sunk: #f3f6f8; --ink: #13222f; --muted: #586a78; --line: #d2dbe2;
+  --accent: #1b3a5c; --accent-ink: #ffffff; --crane: #d9531b;
+  --crit: #c22f2a; --crit-bg: #fbe9e7; --warn: #a36b00; --warn-bg: #fdf2dc; --ok: #22784a; --ok-bg: #e2f3e9;
+  --live: #0d6470; --live-bg: #def0f2; --sim: #6b5a8e; --sim-bg: #ece8f4;
+  --f-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e171f; --surface: #15212b; --sunk: #111c25; --ink: #e5ecf1; --muted: #93a5b3; --line: #273745;
+  --accent: #9dc0ee; --accent-ink: #0e171f; --crane: #f07a3c;
+  --crit: #f0756c; --crit-bg: #3a1c1b; --warn: #e6b450; --warn-bg: #33281a; --ok: #63c58e; --ok-bg: #16301f;
+  --live: #6fd0db; --live-bg: #12303a; --sim: #b9a6e0; --sim-bg: #2a2440; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e171f; --surface: #15212b; --sunk: #111c25; --ink: #e5ecf1; --muted: #93a5b3; --line: #273745;
+  --accent: #9dc0ee; --accent-ink: #0e171f; --crane: #f07a3c;
+  --crit: #f0756c; --crit-bg: #3a1c1b; --warn: #e6b450; --warn-bg: #33281a; --ok: #63c58e; --ok-bg: #16301f;
+  --live: #6fd0db; --live-bg: #12303a; --sim: #b9a6e0; --sim-bg: #2a2440; color-scheme: dark }
+
+html, body { background: var(--bg); color: var(--ink); }
+body { font: 15px/1.5 var(--f-body); }
+.app { max-width: 1120px; margin: 0 auto; padding-block: 12px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--f-display); letter-spacing: .01em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 800; }
+h2 { font-size: 26px; font-weight: 700; }
+h3 { font-size: 19px; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 600 11px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--crane); outline-offset: 2px; }
+
+/* header */
+.bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.brand { font: 800 26px/1 var(--f-display); display: flex; align-items: center; gap: 9px; letter-spacing: .02em; }
+.mark { width: 22px; height: 22px; background: var(--crane); clip-path: polygon(0 30%, 100% 30%, 100% 100%, 0 100%); box-shadow: inset 0 -6px 0 rgba(0,0,0,.18); }
+.where { display: flex; gap: 10px; align-items: baseline; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
+.where b { color: var(--ink); font-weight: 600; }
+.clock { margin-left: auto; font-size: 15px; font-weight: 600; background: var(--surface); border: 1px solid var(--line); padding: 6px 10px; border-radius: var(--r); }
+
+/* progress rail: a real sequence, so numbered */
+.steps ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; counter-reset: s; }
+.steps li { counter-increment: s; font: 600 12px/1.2 var(--f-mono); color: var(--muted); padding: 8px 6px 0; border-top: 3px solid var(--line); min-width: 0; }
+.steps li::before { content: counter(s) " "; }
+.steps li.done { border-color: var(--accent); color: var(--ink); }
+.steps li.now { border-color: var(--crane); color: var(--ink); }
+@media (max-width: 640px) { .steps li span { display: none; } }
+
+/* gate strip */
+.gate { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+.gate .glabel { display: grid; gap: 4px; }
+.gate .glabel b { font: 700 18px/1 var(--f-display); }
+.lanes { display: grid; gap: 5px; min-width: 0; }
+.lane { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; font: 500 12px/1 var(--f-mono); }
+.lane .ln { display: flex; align-items: center; gap: 6px; }
+.lane .light { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+.lane.down .light { background: var(--crit); }
+.lane.held .light, .lane.busy .light { background: var(--warn); }
+.lane .track { height: 16px; background: var(--sunk); border-radius: 3px; position: relative; overflow: hidden; display: flex; gap: 3px; align-items: center; padding: 0 4px; }
+.lane.down .track { background: repeating-linear-gradient(135deg, var(--crit-bg) 0 8px, var(--sunk) 8px 16px); }
+.lane .truck { width: 14px; height: 9px; border-radius: 2px; background: var(--accent); flex: none; opacity: .85; }
+.lane .note { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--crit); font-weight: 600; }
+.lane.held .note, .lane.busy .note { color: var(--warn); }
+.qbox { text-align: right; display: grid; gap: 2px; }
+.qbox b { font: 800 30px/1 var(--f-display); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .gate { grid-template-columns: 1fr auto; } .gate .glabel { grid-column: 1 / -1; } }
+
+/* stage */
+#stage { display: grid; gap: 14px; outline: none; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.lede { display: grid; gap: 8px; }
+.lede p { color: var(--muted); }
+.cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.spacer { flex: 1; }
+
+.tag { display: inline-flex; align-items: center; gap: 5px; font: 600 11px/1 var(--f-mono); letter-spacing: .06em; padding: 4px 7px; border-radius: 3px; white-space: nowrap; }
+.tag.live { color: var(--live); background: var(--live-bg); }
+.tag.sim { color: var(--sim); background: var(--sim-bg); }
+.tag.crit { color: var(--crit); background: var(--crit-bg); }
+.tag.warn { color: var(--warn); background: var(--warn-bg); }
+.tag.ok { color: var(--ok); background: var(--ok-bg); }
+.tag.mute { color: var(--muted); background: var(--sunk); }
+.tag.sugg { color: var(--accent); background: transparent; border: 1px solid currentColor; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 10px 16px; border-radius: var(--r); font-weight: 600; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.small { padding: 6px 10px; font-size: 13px; }
+
+/* tables */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font: 600 11px/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+tr.me td { background: var(--sunk); font-weight: 600; }
+td .best { color: var(--ok); }
+
+/* ship summary */
+.ship { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ship div { display: grid; gap: 3px; background: var(--sunk); border-radius: var(--r); padding: 10px; min-width: 0; }
+.ship b { font: 700 18px/1.1 var(--f-display); overflow-wrap: anywhere; }
+@media (max-width: 640px) { .ship { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* form */
+.form { display: grid; gap: 10px; }
+.form label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.form input, .form select { font: 500 14px var(--f-mono); padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--sunk); color: var(--ink); min-width: 0; }
+.form .two { display: grid; grid-template-columns: 1fr 90px; gap: 8px; }
+.result { font: 13px/1.5 var(--f-mono); background: var(--sunk); border-radius: var(--r); padding: 10px; overflow-wrap: anywhere; }
+.result.err { color: var(--crit); }
+.result.good { color: var(--ok); }
+
+/* alerts + triage */
+.alerts { display: grid; gap: 10px; }
+.alert { display: grid; grid-template-columns: 6px 1fr auto; gap: 0 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; text-align: left; padding: 0; width: 100%; }
+.alert .stripe { background: var(--warn); }
+.alert.crit .stripe { background: var(--crit); }
+.alert .body { padding: 12px 0; display: grid; gap: 4px; min-width: 0; }
+.alert .code { font: 700 22px/1 var(--f-display); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.alert .meta { color: var(--muted); font-size: 14px; }
+.alert .side { padding: 12px 14px 12px 0; display: grid; align-content: center; justify-items: end; gap: 6px; }
+.alert.open { border-color: var(--accent); }
+.alert .detail { grid-column: 2 / -1; padding: 0 14px 14px 0; display: grid; gap: 10px; }
+.alert .detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+.alert .detail dt { color: var(--muted); }
+.alert .detail dd { margin: 0; font-family: var(--f-mono); }
+.costs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cost { background: var(--sunk); border-radius: var(--r); padding: 12px; display: grid; gap: 4px; min-width: 0; }
+.cost b { font: 800 28px/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.cost.top { background: var(--crit-bg); }
+.cost.top b { color: var(--crit); }
+@media (max-width: 640px) { .costs { grid-template-columns: 1fr; } }
+.verdict { padding: 12px 14px; border-radius: var(--r); background: var(--sunk); display: grid; gap: 4px; }
+.verdict.good { background: var(--ok-bg); }
+.verdict.bad { background: var(--warn-bg); }
+
+/* four stories */
+.stories { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .stories { grid-template-columns: 1fr; } }
+.story { border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.story .src { font: 600 11px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.story .says { font: 700 22px/1.05 var(--f-display); }
+.story .says.flag { color: var(--crit); }
+.story .why { font-size: 13px; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.story .read { font-size: 13px; padding: 8px 10px; border-radius: var(--r); background: var(--sunk); }
+.story .read.match { background: var(--ok-bg); }
+.story .read.miss { background: var(--warn-bg); }
+
+/* decision options */
+.options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 860px) { .options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .options { grid-template-columns: 1fr; } }
+.opt { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.opt:hover:not(:disabled) { border-color: var(--accent); }
+.opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.opt .name { font: 700 20px/1 var(--f-display); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.opt .d { font-size: 13px; color: var(--muted); }
+.opt dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; margin: 0; font-size: 13px; }
+.opt dt { color: var(--muted); }
+.opt dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.opt dd.bad { color: var(--crit); }
+.opt dd.good { color: var(--ok); }
+.opt:disabled { opacity: .6; cursor: not-allowed; background: var(--sunk); }
+
+/* run */
+.runwrap { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: stretch; }
+@media (max-width: 640px) { .runwrap { grid-template-columns: 1fr; } }
+.thermo { background: var(--sunk); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; justify-items: center; }
+.thermo svg { width: 100%; max-width: 120px; height: auto; }
+.thermo b { font: 800 30px/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.log li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; animation: in .35s ease-out; }
+.log li span:first-child { font-family: var(--f-mono); color: var(--muted); }
+@keyframes in { from { opacity: .2; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.approvals { display: grid; gap: 8px; }
+.approve { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; background: var(--sunk); border-radius: var(--r); padding: 10px 12px; }
+.outcome { display: grid; gap: 12px; }
+.outhead { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--r); }
+.outhead.good { background: var(--ok-bg); }
+.outhead.bad { background: var(--crit-bg); }
+.outhead.mid { background: var(--warn-bg); }
+.outhead b { font: 800 24px/1 var(--f-display); }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.stat { background: var(--sunk); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.stat b { font: 800 24px/1 var(--f-display); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* report chart */
+.bars { display: grid; gap: 10px; }
+.barrow { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; font-size: 14px; }
+.bartrack { height: 26px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.barfill { display: block; height: 100%; border-radius: 3px; background: var(--muted); min-width: 2px; }
+.barrow.me .barfill { background: var(--accent); }
+.barval { font: 600 13px var(--f-mono); color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .barrow { grid-template-columns: 1fr; gap: 4px; } }
+.srcs { display: grid; gap: 6px; font-size: 13px; }
+.srcs div { display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.srcs span:last-child { color: var(--muted); }
+@media (max-width: 640px) { .srcs div { grid-template-columns: 1fr; gap: 2px; } }
+
+.foot { display: grid; gap: 8px; color: var(--muted); font-size: 13px; }
+.legend { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<div class="app">
+  <header class="bar">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>PortAble</div>
+    <div class="where"><b id="termName">APM Terminals · Pier 400</b><span class="mono" id="termCode">W185</span></div>
+    <div class="clock mono" id="clock" aria-live="polite">Wed Oct 28 · 10:00</div>
+  </header>
+
+  <nav class="steps" aria-label="Drill progress"><ol id="steps"></ol></nav>
+
+  <section class="gate" id="gate" aria-label="Gate lanes"></section>
+
+  <main id="stage" tabindex="-1"></main>
+
+  <footer class="foot">
+    <div class="legend"><span class="tag live">LIVE · Terminal49</span> real container data <span class="tag sim">SIM</span> simulated for the drill</div>
+    <p>PortAble suggests; the planner decides. It never releases a box under a customs hold, and it shows where sources disagree instead of hiding it. Misuse risk: forecasts could be used to justify skipping inspections, so exam-related options always keep the hold in place.</p>
+  </footer>
+</div>
+<script>
+// ---------- PortAble data: real Terminal49 snapshot + sourced model parameters ----------
+
+// REAL: pulled from Terminal49 (tracking request created 2026-10-17 20:03 UTC).
+// Fields keep Terminal49's own names so a live API read can drop straight in.
+const T49_SNAPSHOT = {
+  pulled_at: '2026-10-17T20:03:24Z',
+  source: 'Terminal49 tracking (snapshot)',
+  shipment: {
+    bill_of_lading: '9509953390', shipping_line_scac: 'COSU', shipping_line_name: 'COSCO',
+    port_of_lading_name: 'Tianjinxingang', port_of_discharge_name: 'Los Angeles',
+    pod_vessel_name: 'EVER LAUREL', voyage: '1241E', pod_eta_at: '2026-10-28T13:00:00Z',
+    pol_vessel_departed_at: '2026-10-01T21:31:12Z',
+    pod_terminal_name: 'APM Terminals', pod_terminal_nickname: 'APMT', pod_terminal_firms_code: 'W185',
+  },
+  containers: ['OOCU8185051', 'TRHU5485372', 'TGBU4865142', 'CSNU6554910'].map(number => ({
+    number, equipment_type: 'dry', equipment_length_ft: 40, equipment_height: 'high_cube',
+    current_status: 'on_ship', available_for_pickup: false, availability_known: false,
+    pickup_lfd: null, holds_at_pod_terminal: [], fees_at_pod_terminal: [], fees_total_amount: 0,
+    urgency: 'unknown', urgency_reason: 'terminal availability has never been checked',
+    latest_event: 'container.transport.estimated.vessel_arrived',
+  })),
+};
+
+// Model parameters. `src` says where each number comes from; anything marked "assumption" is ours.
+const PROFILES = {
+  la: {
+    name: 'Los Angeles · APM Terminals', short: 'LA',
+    dataSource: 'Terminal49 (live adapter)',
+    lanes: 4, lanesDown: 2, laneMin: 10,
+    arrivalsPerHour: 20, initialQueue: 12,
+    freeWaitMin: 60, truckWaitPerHour: 100,
+    freeDays: 4, demurrageDay: 200, reeferMult: 3.5,
+    reeferValue: 180000,
+    examMin: 35, plugExamMin: 60, laneBlockMin: 45, gateHoldMin: 45, rerouteMin: 10, detectMin: 5,
+    excursionMin: 30, reeferRoundMin: 120,
+    illustrative: false,
+  },
+  tianjin: {
+    name: 'Tianjin · illustrative profile', short: 'TJ',
+    dataSource: 'Port community system (adapter to build)',
+    lanes: 6, lanesDown: 3, laneMin: 8,
+    arrivalsPerHour: 34, initialQueue: 18,
+    freeWaitMin: 90, truckWaitPerHour: 40,
+    freeDays: 7, demurrageDay: 120, reeferMult: 3,
+    reeferValue: 180000,
+    examMin: 40, plugExamMin: 75, laneBlockMin: 45, gateHoldMin: 45, rerouteMin: 10, detectMin: 5,
+    excursionMin: 30, reeferRoundMin: 120,
+    illustrative: true,
+  },
+};
+
+const SOURCES_NOTE = [
+  ['Free time before demurrage, LA/Long Beach', '3–5 days, 4 most common', 'FreightFigures, 2026'],
+  ['Demurrage, first days past free time (dry)', '$175–$225 per day → we use $200', 'FreightFigures, 2026'],
+  ['Reefer demurrage', 'about 3–4× dry → we use 3.5×', 'FreightFigures, 2026'],
+  ['Truck waiting time', '1–2 h free, then charged per hour → we use 1 h free, $100/h', 'Ship4wd drayage guide'],
+  ['Average truck turn time, LA/LB', 'about 90 minutes', 'Harbor Trucking Assn via TT News (2017)'],
+  ['Reefer cargo value', '"several hundred thousand USD" per box → we use $180,000', 'Swedish Club cargo advice'],
+  ['Reefer warming rate after a unit fault', '5 °C per hour (return air)', 'Assumption: no public rate; depends on box, cargo, weather'],
+  ['Manual reefer checks without PortAble', 'every 2 hours', 'Assumption: terminals check plugs on rounds'],
+  ['Gate service time, exam and hold durations', '10 min per truck per lane; 35–60 min exams', 'Assumption: stylized terminal'],
+];
+
+// The drill: the moment a terminal planner has to decide.
+const DRILL = {
+  date: 'Wed Oct 28', start: '10:00', decisionAt: '10:30',
+  setC: -18, limitC: -12, warmPerHour: 5, coolPerHour: 6, tempAtDecision: -14.5,
+  focus: {
+    C184: { code: 'C184', kind: 'reefer', label: 'Refrigerated · frozen seafood', value: 180000,
+      stories: {
+        carrier: { says: 'EMPTY', note: 'Manifest filed by the shipping line before sailing.', trust: 'doubt',
+          why: 'Paperwork from weeks ago, and today’s scale contradicts it.' },
+        scale: { says: 'HEAVY · 26.4 t', note: 'Weighed at the terminal this morning.', trust: 'trust',
+          why: 'A physical reading taken today on a calibrated scale.' },
+        customs: { says: 'HOLD · agriculture exam', note: 'A legal hold. Only customs can lift it.', trust: 'binding',
+          why: 'Binding whether you believe it or not. Release stays locked.' },
+        reefer: { says: 'WARMING · −14.5 °C, set −18 °C', note: 'Live plug sensor, every 5 minutes.', trust: 'trust',
+          why: 'A live sensor. The clock it starts is the reason this box can’t wait.' },
+      } },
+    C392: { code: 'C392', kind: 'dry', label: 'General cargo · past last free day', waitedMin: 70 },
+    C510: { code: 'C510', kind: 'dry', label: 'General cargo · truck was in Lane 2', delayMin: 20 },
+  },
+};
+
+const ACTIONS = {
+  reroute: { label: 'Reroute to reefer stack', short: 'REROUTE', desc: 'Move it to a working plug. The customs hold stays; no exam requested yet.' },
+  plugExam: { label: 'Plug in + request exam', short: 'PLUG + EXAM', desc: 'Move it to a working plug and ask customs for a perishables-priority exam there.' },
+  inspect: { label: 'Inspect now', short: 'INSPECT', desc: 'Send it to the exam lane unplugged to settle the weight question first.' },
+  wait: { label: 'Wait', short: 'WAIT', desc: 'Leave it where it is and keep the gate moving.' },
+  holdGate: { label: 'Hold the whole gate', short: 'HOLD GATE', desc: 'The “bang”: stop every lane until this box is sorted out.' },
+  release: { label: 'Release', short: 'RELEASE', desc: 'Locked: customs has a hold on this box.', locked: true },
+};
+
+if (typeof module !== 'undefined') module.exports = { T49_SNAPSHOT, PROFILES, SOURCES_NOTE, DRILL, ACTIONS };
+
+</script>
+<script>
+// ---------- PortAble engine: one terminal gate, one shift, three ways to run it ----------
+// Pure and deterministic for a given seed. 5-minute steps from 10:00 to 14:00.
+// Half the gate lanes go down at 10:30 for two hours.
+const STEP = 5, STEPS = 48, OUTAGE_STEP = 6, OUTAGE_MIN = 120, T0 = 30; // T0 = minutes after 10:00 when the drill decision lands
+const POLICIES = {
+  fcfs: { name: 'First come, first served', short: 'FCFS', desc: 'Trucks are served in arrival order. A problem box is found when it reaches a lane, and stops that lane.' },
+  hold: { name: 'Hold everything', short: 'HOLD', desc: 'When the lanes go down, stop the gate and sweep the yard. Any new problem box stops the gate again.' },
+  portable: { name: 'PortAble', short: 'PORTABLE', desc: 'Reconcile every source when a box lands, divert problem boxes to an exception bay, plug in warming reefers first, and serve trucks by cost of delay.' },
+};
+
+function mulberry(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function poisson(r, lam) { const L = Math.exp(-lam); let k = 0, p = 1; do { k++; p *= r(); } while (p > L); return k - 1; }
+function expo(r, mean) { return -mean * Math.log(1 - r()); }
+const clockAt = min => { const m = 600 + Math.round(min); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(((m % 60) + 60) % 60).padStart(2, '0'); };
+
+// Trucks arrive (Poisson), each for one box. Some boxes are reefers, some must leave today (last free day),
+// some carry a conflict that needs a customs exam, and some reefers develop a unit fault (time to the
+// safe-temperature limit is exponential, mean 60 min).
+function makeBoxes(cfg, r) {
+  const boxes = [];
+  const gen = arrive => {
+    const reefer = r() < 0.10;
+    const b = { arrive, truck: true, reefer, lfdToday: r() < 0.2, exception: r() < 0.05, fault: null, value: reefer ? cfg.reeferValue : 0, code: null };
+    if (reefer && r() < 0.15) b.fault = { start: Math.floor(r() * 180), ttl: Math.max(10, Math.round(expo(r, 60))) };
+    boxes.push(b);
+  };
+  for (let i = 0; i < cfg.initialQueue; i++) gen(-Math.floor(r() * 50));
+  for (let s = 0; s < STEPS; s++) {
+    const n = poisson(r, cfg.arrivalsPerHour * STEP / 60);
+    for (let k = 0; k < n; k++) gen(s * STEP + Math.floor(r() * STEP));
+  }
+  boxes.sort((a, c) => a.arrive - c.arrive);
+  return boxes;
+}
+
+// The drill's three boxes, injected into a seeded background shift.
+function injectDrill(boxes, cfg, D) {
+  const F = D.focus;
+  // C184: a yard box (no truck can take it while customs holds it). Its unit started failing at 09:48:
+  // −18 °C rising 5 °C/h reaches −14.5 °C at 10:30 and the −12 °C limit at 11:00.
+  const faultStart = T0 - Math.round((D.tempAtDecision - D.setC) / D.warmPerHour * 60);
+  const ttl = Math.round((D.limitC - D.setC) / D.warmPerHour * 60);
+  boxes.push({ code: 'C184', arrive: -240, truck: false, reefer: true, lfdToday: false, exception: true, value: F.C184.value, fault: { start: faultStart, ttl } });
+  // C392: its truck has waited 70 min by 10:30 (past the 1 h free time) and today is its last free day.
+  // Its box only becomes available at 10:30, so the truck rejoins the line then.
+  boxes.push({ code: 'C392', arrive: T0 - F.C392.waitedMin, queuedAt: T0, availAt: T0, truck: true, reefer: false, lfdToday: true, exception: false, value: 0, fault: null });
+  // C510: its truck was mid-transaction in Lane 2 when the lane went down.
+  boxes.push({ code: 'C510', arrive: T0 - 5, availAt: T0, truck: true, reefer: false, lfdToday: false, exception: false, value: 0, fault: null, front: true });
+  boxes.sort((a, c) => a.arrive - c.arrive);
+}
+
+function costOfDelay(b, t, cfg) {
+  // expected cost of making this truck wait one more hour
+  const wait = t - b.arrive;
+  let c = 0;
+  if (wait + 60 > cfg.freeWaitMin) c += cfg.truckWaitPerHour * Math.min(1, (wait + 60 - cfg.freeWaitMin) / 60);
+  if (b.lfdToday) c += cfg.demurrageDay * (b.reefer ? cfg.reeferMult : 1) * 0.5;
+  return c;
+}
+
+// opts.drill: DRILL object; opts.action: what the planner does with C184 at 10:30;
+// opts.approveOthers: PortAble's calls on C392/C510 approved (default true when policy is portable)
+function runShift(cfg, policy, seed, opts = {}) {
+  const r = mulberry(seed);
+  const boxes = makeBoxes(cfg, r);
+  const D = opts.drill;
+  if (D) injectDrill(boxes, cfg, D);
+  boxes.forEach((b, i) => Object.assign(b, { id: i, exit: null, fixAt: null, examStart: null, examEnd: null, notBefore: b.availAt !== undefined ? b.availAt : null }));
+  const qpos = b => b.queuedAt !== undefined ? b.queuedAt : b.arrive;   // place in an arrival-order line
+  const smart = policy === 'portable';
+  const approve = opts.approveOthers !== undefined ? opts.approveOthers : smart;
+
+  // PortAble reconciles sources when a box is discharged, so it knows about conflicts before the truck arrives.
+  if (smart) boxes.forEach(b => { if (b.exception && !b.code) { b.examStart = b.arrive - 60; b.examEnd = b.examStart + cfg.examMin; } });
+
+  let acc = 0, deduct = 0, holdUntil = -1, holdsLeft = 2;
+  const laneBlocks = [];
+  const timeline = [];
+  const events = [];
+  const by = code => boxes.find(b => b.code === code);
+  // opts.noBump: the planner rejected PortAble's call to move C392 up the queue
+  const cd = (b, t) => (opts.noBump && b.code === 'C392') ? 0 : costOfDelay(b, t, cfg);
+
+  // the drill decision on C184, applied at 10:30
+  function applyAction(t) {
+    const c = by('C184'); if (!c) return;
+    const a = opts.action || 'wait';
+    if (a === 'reroute') { c.fixAt = t + cfg.rerouteMin; deduct += 0.5; events.push([t, 'C184 moved to a working reefer plug. Customs hold still on.']); }
+    if (a === 'plugExam') { c.fixAt = t + cfg.rerouteMin; c.examStart = c.fixAt; c.examEnd = c.fixAt + cfg.plugExamMin; deduct += 0.5; events.push([t, 'C184 moved to a working plug; perishables exam requested at the stack.']); }
+    if (a === 'inspect') { laneBlocks.push(t + 15); c.examStart = t; c.examEnd = t + cfg.examMin; c.fixAt = t + cfg.examMin; events.push([t, 'C184 sent to the exam lane, unplugged. One lane busy for 15 min.']); }
+    if (a === 'holdGate') { holdUntil = Math.max(holdUntil, t + cfg.gateHoldMin); c.fixAt = t + 15; c.examStart = t; c.examEnd = t + cfg.examMin; events.push([t, 'Gate held for ' + cfg.gateHoldMin + ' min. Crew plugs C184 in.']); }
+    if (a === 'wait') events.push([t, 'C184 left where it is.']);
+  }
+
+  for (let s = 0; s < STEPS; s++) {
+    const t = s * STEP;
+    const outage = s >= OUTAGE_STEP && t < OUTAGE_STEP * STEP + OUTAGE_MIN;
+    if (s === OUTAGE_STEP) events.push([t, 'Lanes 2 and 3 go down.']);
+    if (s === OUTAGE_STEP + OUTAGE_MIN / STEP) events.push([t, 'Lanes 2 and 3 back up.']);
+    if (D && t === T0) {
+      applyAction(t);
+      const c510 = by('C510');
+      if (c510) { if (approve) events.push([t, 'C510 reassigned from Lane 2 to Lane 1.']); else { c510.notBefore = t + D.focus.C510.delayMin; events.push([t, 'C510 waits for Lane 2.']); } }
+      const c392 = by('C392');
+      if (c392 && smart) events.push([t, opts.noBump ? 'C392 joins the back of the line.' : 'C392 moved to the next free slot.']);
+    }
+
+    // hold everything: stop the gate at the outage and sweep the yard
+    if (policy === 'hold' && s === OUTAGE_STEP) {
+      holdUntil = Math.max(holdUntil, t + cfg.gateHoldMin);
+      events.push([t, 'Gate held for a yard sweep.']);
+      boxes.forEach(b => {
+        if (b.exit !== null || b.code === 'C184') return;
+        if (b.exception && b.examStart === null && b.arrive <= t + 60) { b.examStart = t; b.examEnd = t + cfg.examMin; }
+        if (b.fault && b.fault.start <= t && b.fixAt === null) b.fixAt = holdUntil;
+      });
+    }
+    // Without PortAble, a failing reefer unit is found on the next manual reefer round (or when it leaves)
+    if (!smart && t > 0 && (t + 600) % cfg.reeferRoundMin === 0) boxes.forEach(b => {
+      if (b.fault && b.fault.start <= t && b.fixAt === null && b.exit === null) b.fixAt = t + cfg.rerouteMin;
+    });
+    // PortAble: a warming reefer is detected from its plug sensor and moved to a working plug
+    if (smart) boxes.forEach(b => {
+      if (!b.fault || b.code || b.fixAt !== null || b.exit !== null) return;
+      if (b.fault.start + cfg.detectMin <= t) { b.fixAt = t + cfg.rerouteMin; deduct += 0.5; }
+    });
+
+    let lanesUp = cfg.lanes - (outage ? cfg.lanesDown : 0) - laneBlocks.filter(e => e > t).length;
+    if (t < holdUntil) lanesUp = 0;
+    lanesUp = Math.max(0, lanesUp);
+    acc += lanesUp * STEP / cfg.laneMin - deduct; deduct = 0;
+    if (lanesUp === 0) acc = Math.min(acc, 0);
+
+    const present = boxes.filter(b => b.truck && b.exit === null && b.arrive <= t);
+    let order;
+    if (smart) order = present.filter(b => !b.exception || (b.examEnd !== null && b.examEnd <= t))
+      .sort((a, c) => (c.front ? 1 : 0) - (a.front ? 1 : 0) || cd(c, t) - cd(a, t) || qpos(a) - qpos(c));
+    else order = present.filter(b => !(b.examStart !== null && (b.examEnd === null || b.examEnd > t))).sort((a, c) => (c.front ? 1 : 0) - (a.front ? 1 : 0) || qpos(a) - qpos(c));
+
+    let served = 0;
+    for (const b of order) {
+      if (acc < 1 || (t < holdUntil)) break;
+      if (b.notBefore !== null && t < b.notBefore) continue;
+      if (b.exception && b.examEnd === null) {
+        // found at the gate
+        if (policy === 'hold' && holdsLeft > 0) {
+          holdsLeft--; holdUntil = t + 30; b.examStart = t; b.examEnd = t + cfg.examMin;
+          events.push([t, 'Problem box at the gate: gate held 30 min.']);
+          break;
+        }
+        laneBlocks.push(t + cfg.laneBlockMin); b.examStart = t + cfg.laneBlockMin; b.examEnd = b.examStart + cfg.examMin; acc -= 1;
+        continue;
+      }
+      if (b.exception && b.examEnd > t) continue;
+      b.exit = t + STEP / 2; acc -= 1; served++;
+    }
+    const q = boxes.filter(b => b.truck && b.exit === null && b.arrive <= t + STEP);
+    timeline.push({ t, lanesUp, queue: q.length, served, held: t < holdUntil });
+  }
+
+  const END = STEPS * STEP;
+  let truckCost = 0, demurrage = 0, spoiled = 0, waitSum = 0, trucks = 0, out = 0, spoiledBoxes = 0;
+  for (const b of boxes) {
+    if (b.truck) {
+      const wait = (b.exit !== null ? b.exit : END) - b.arrive;
+      waitSum += wait; trucks++;
+      truckCost += Math.max(0, wait - cfg.freeWaitMin) / 60 * cfg.truckWaitPerHour;
+      if (b.exit !== null) out++;
+    }
+    if (b.lfdToday && b.exit === null) demurrage += cfg.demurrageDay * (b.reefer ? cfg.reeferMult : 1);
+    // a problem box whose exam never finishes today stays another day
+    else if (b.exception && b.exit === null && (b.examEnd === null || b.examEnd > END)) demurrage += cfg.demurrageDay * (b.reefer ? cfg.reeferMult : 1);
+    if (b.fault) b.loss = lossOf(b, cfg, END); else b.loss = 0;
+    if (b.loss > 0) { spoiled += b.loss; if (b.loss >= b.value * 0.5) spoiledBoxes++; }
+  }
+  const fees = truckCost + demurrage;
+  return {
+    policy, seed, boxes, timeline, events: events.map((e, i) => [e[0], e[1], i]).sort((a, c) => a[0] - c[0] || a[2] - c[2]),
+    spoiled: Math.round(spoiled), truckCost: Math.round(truckCost), demurrage: Math.round(demurrage), fees: Math.round(fees),
+    total: Math.round(spoiled + fees), avgWait: trucks ? waitSum / trucks : 0, out, trucks, spoiledBoxes,
+  };
+}
+
+// Expected claim on a reefer: once past its safe limit, the chance the load is rejected grows to 100%
+// over `excursionMin` minutes. The clock stops when it is plugged into a working unit or leaves on a truck.
+function lossOf(b, cfg, END) {
+  const stop = Math.min(b.fixAt !== null ? b.fixAt : Infinity, b.exit !== null ? b.exit : Infinity, END);
+  if (stop <= b.fault.start) return 0;
+  const over = Math.max(0, stop - (b.fault.start + b.fault.ttl));
+  return b.value * Math.min(1, over / cfg.excursionMin);
+}
+
+// C184's return-air temperature over time under a given run
+function c184Temp(run, D, t) {
+  const c = run.boxes.find(b => b.code === 'C184');
+  const fixAt = c.fixAt !== null ? c.fixAt : Infinity;
+  if (t <= fixAt) return D.setC + D.warmPerHour * (t - c.fault.start) / 60;
+  const peak = D.setC + D.warmPerHour * (fixAt - c.fault.start) / 60;
+  return Math.max(D.setC, peak - D.coolPerHour * (t - fixAt) / 60);
+}
+
+// What each option looks like 30 minutes after the decision, and at the end of the shift.
+function forecast(cfg, D, seed) {
+  const base = runShift(cfg, 'portable', seed, { drill: D, action: 'wait' });
+  const qAt = (run, t) => run.timeline[Math.round(t / STEP)].queue;
+  const out = {};
+  for (const a of ['reroute', 'plugExam', 'inspect', 'wait', 'holdGate']) {
+    const run = a === 'wait' ? base : runShift(cfg, 'portable', seed, { drill: D, action: a });
+    const c = run.boxes.find(b => b.code === 'C184');
+    const temp30 = c184Temp(run, D, T0 + 30);
+    const q0 = qAt(base, T0 + 30), q1 = qAt(run, T0 + 30);
+    out[a] = {
+      action: a, run, temp30, peak: Math.max(...[0, 10, 20, 30, 40, 60].map(m => c184Temp(run, D, T0 + m))),
+      cargoLoss: Math.round(c.loss), cargoSafe: c.loss === 0,
+      congestion: q0 ? Math.round((q1 - q0) / q0 * 100) : 0,
+      delayMin: Math.round(run.avgWait - base.avgWait),
+      fees: run.fees, total: run.total,
+      holdCleared: c.examEnd !== null ? clockAt(c.examEnd) : null,
+    };
+  }
+  const best = Object.values(out).sort((a, c) => a.total - c.total)[0];
+  return { options: out, suggested: best.action };
+}
+
+// Triage: what does it cost if nobody acts on each box for the next 30 minutes?
+function triage(cfg, D) {
+  const ttlLeft = (D.limitC - D.tempAtDecision) / D.warmPerHour * 60; // minutes until C184 crosses its limit
+  const lateFix = T0 + 30 + cfg.rerouteMin;                              // acting 30 min late
+  const over = Math.max(0, lateFix - (T0 + ttlLeft));
+  return {
+    C184: { cost: Math.round(D.focus.C184.value * Math.min(1, over / cfg.excursionMin)), why: 'crosses −12 °C in ' + Math.round(ttlLeft) + ' min; acting 30 min late risks the load', irreversible: true },
+    C392: { cost: Math.round(cfg.truckWaitPerHour * 0.5), why: 'truck already past its free hour: +$' + cfg.truckWaitPerHour + '/h; last free day today', irreversible: false },
+    C510: { cost: Math.round(cfg.truckWaitPerHour * Math.max(0, (D.focus.C510.delayMin + 30 - cfg.freeWaitMin + 5)) / 60), why: 'stuck in a dead lane: +' + D.focus.C510.delayMin + ' min until reassigned; still inside its free hour', irreversible: false },
+  };
+}
+
+// Monte Carlo: the same three policies across many random outages.
+function benchmark(cfg, n = 300, seed0 = 1000) {
+  const res = {};
+  for (const p of Object.keys(POLICIES)) {
+    const runs = [];
+    for (let i = 0; i < n; i++) runs.push(runShift(cfg, p, seed0 + i));
+    const mean = k => runs.reduce((s, x) => s + x[k], 0) / n;
+    const pct = (k, q) => { const v = runs.map(x => x[k]).sort((a, c) => a - c); return v[Math.min(n - 1, Math.floor(q * n))]; };
+    res[p] = { spoiled: mean('spoiled'), fees: mean('fees'), avgWait: mean('avgWait'), out: mean('out'), total: mean('total'), p90: pct('total', 0.9) };
+  }
+  return { n, res };
+}
+
+if (typeof module !== 'undefined') module.exports = { STEP, STEPS, T0, OUTAGE_STEP, OUTAGE_MIN, POLICIES, runShift, forecast, triage, benchmark, c184Temp, clockAt, lossOf };
+
+</script>
+<script>
+// ---------- PortAble interface ----------
+const SEED = 7;
+const UI_STEPS = ['Shift start', 'Which box can’t wait?', 'Four stories', 'Decide', '+30 minutes', 'Shift report'];
+const LA = PROFILES.la;
+const FC = forecast(LA, DRILL, SEED);          // every option, run to the end of the shift
+const BASE = FC.options.wait.run;               // "do nothing about C184" reference run
+const TRI = triage(LA, DRILL);
+const S = { step: 0, open: null, picked: null, trust: {}, trustChecked: false, action: null, approveC510: true, approveC392: true,
+  run: null, runIdx: T0 / STEP, timer: null, profile: 'la', bench: {}, track: null, tracking: false, form: { number: '', type: 'bill_of_lading', scac: '' } };
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const money = n => '$' + Math.round(n).toLocaleString('en-US');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tC = v => (v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + ' °C';
+const sign = n => (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
+const OPTION_ORDER = ['reroute', 'plugExam', 'inspect', 'wait', 'holdGate', 'release'];
+
+// ---------- the gate strip ----------
+function gateHTML(t, tl) {
+  const outage = t >= OUTAGE_STEP * STEP && t < OUTAGE_STEP * STEP + OUTAGE_MIN;
+  const expectUp = 4 - (outage ? 2 : 0);
+  const blocked = Math.max(0, expectUp - tl.lanesUp);
+  const lanes = [1, 2, 3, 4].map(n => {
+    if (tl.held) return { n, st: 'held', note: 'HELD' };
+    if (outage && (n === 2 || n === 3)) return { n, st: 'down', note: 'DOWN' };
+    if (blocked && n === 4) return { n, st: 'busy', note: 'EXAM' };
+    return { n, st: 'up', note: '' };
+  });
+  const up = lanes.filter(l => l.st === 'up').length;
+  const per = up ? Math.min(10, Math.ceil(tl.queue / up)) : 0;
+  return `<div class="glabel"><span class="eyebrow">In-gate</span><b>${up} of 4 lanes open</b></div>
+    <div class="lanes">${lanes.map(l => `<div class="lane ${l.st}"><span class="ln"><i class="light"></i>Lane ${l.n}</span>
+      <span class="track">${l.st === 'up' ? '<i class="truck"></i>'.repeat(per) : ''}${l.note ? `<span class="note">${l.note}</span>` : ''}</span></div>`).join('')}</div>
+    <div class="qbox"><span class="eyebrow">Trucks waiting</span><b>${tl.queue}</b></div>`;
+}
+function gateState() {
+  if (S.step === 0) return [0, BASE.timeline[0]];
+  if (S.step <= 3) return [T0, BASE.timeline[T0 / STEP]];
+  if (S.step === 4 && S.run) return [S.runIdx * STEP, S.run.timeline[S.runIdx]];
+  const run = S.run || BASE; return [STEPS * STEP, run.timeline[STEPS - 1]];
+}
+
+// ---------- step 0: an ordinary day, with real Terminal49 data ----------
+function stepShift() {
+  const sh = T49_SNAPSHOT.shipment;
+  const pulled = new Date(T49_SNAPSHOT.pulled_at).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const rows = T49_SNAPSHOT.containers.map(c => `<tr>
+      <td class="mono">${c.number}</td><td>40′ high cube, dry</td><td>On ship</td>
+      <td>${c.holds_at_pod_terminal.length ? 'Yes' : 'None reported'}</td><td class="num">${money(c.fees_total_amount)}</td>
+      <td>Not published yet</td><td><span class="tag mute">${esc(c.urgency)}</span></td></tr>`).join('');
+  const t = S.track;
+  const result = t ? `<div class="result ${t.ok ? 'good' : 'err'}" role="status">${t.ok
+      ? `Tracking request created · status <b>${esc(t.status || 'pending')}</b><br>id ${esc(t.id || '')}<br>Terminal49 will attach the shipment as soon as the carrier confirms it.`
+      : esc(t.error)}</div>` : '';
+  return `<section class="panel lede">
+      <span class="eyebrow">Ordinary Tuesday view · the planner’s inbound watch</span>
+      <h1>Know which box will hurt before the ship lands.</h1>
+      <p>PortAble sits on Terminal49. Every day it watches inbound boxes for holds, fees and last free days, so the planner already has a plan when something breaks. Below is a real shipment heading to this terminal.</p>
+    </section>
+    <div class="cols">
+      <section class="panel">
+        <div class="row"><h2>Inbound to APMT</h2><span class="spacer"></span><span class="tag live">LIVE · Terminal49</span></div>
+        <div class="ship">
+          <div><span class="eyebrow">Vessel</span><b>${sh.pod_vessel_name}</b><span class="mono">${sh.shipping_line_name} · ${sh.voyage}</span></div>
+          <div><span class="eyebrow">From</span><b>Tianjin</b><span class="mono">left Oct 1</span></div>
+          <div><span class="eyebrow">Arrives</span><b>Wed Oct 28</b><span class="mono">6:00 AM PT (ETA)</span></div>
+          <div><span class="eyebrow">Bill of lading</span><b class="mono">${sh.bill_of_lading}</b><span class="mono">${sh.pod_terminal_firms_code}</span></div>
+        </div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Container</th><th>Type</th><th>Status</th><th>Holds</th><th class="num">Fees</th><th>Last free day</th><th>T49 urgency</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+        <p class="mono" style="font-size:12px;color:var(--muted)">Terminal49 snapshot, tracked ${pulled} PT. Terminal49 marks urgency “unknown” because terminal availability has never been checked; that is the gap PortAble fills.</p>
+        <div class="verdict"><b>PortAble’s pre-arrival read</b>
+          <span>If discharged Oct 28, the last free day lands around Nov 1 (LA/Long Beach default: 4 free days). Each day past it costs about ${money(LA.demurrageDay)} per box. No holds yet: PortAble re-checks after discharge and flags any box whose sources disagree.</span></div>
+      </section>
+      <section class="panel">
+        <div class="row"><h3>Track another box</h3><span class="spacer"></span><span class="tag live">Terminal49 API</span></div>
+        <p style="font-size:14px;color:var(--muted)">Sends a real tracking request to Terminal49 from the deployed app.</p>
+        <form class="form" id="trackForm" novalidate>
+          <label for="tNum">Number<input id="tNum" name="number" autocomplete="off" placeholder="e.g. 9509953390" value="${esc(S.form.number)}" required></label>
+          <div class="two">
+            <label for="tType">Type<select id="tType" name="type">${[['bill_of_lading', 'Bill of lading'], ['booking_number', 'Booking'], ['container', 'Container (beta)']].map(([v, n]) => `<option value="${v}" ${S.form.type === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+            <label for="tScac">Carrier<input id="tScac" name="scac" maxlength="4" placeholder="COSU" autocomplete="off" value="${esc(S.form.scac)}"></label>
+          </div>
+          <button class="btn primary" type="submit" ${S.tracking ? 'disabled' : ''}>${S.tracking ? 'Sending…' : 'Start tracking'}</button>
+        </form>
+        ${result}
+      </section>
+    </div>
+    <section class="panel">
+      <div class="row"><div class="lede"><span class="eyebrow">The drill</span><h2>Wed Oct 28, 10:30. The day this ship lands, half the gate goes down.</h2>
+        <p>Rehearse the outage before it happens. The four real boxes stay on PortAble\u2019s watch list; three simulated problem boxes test the plan.</p></div>
+        <span class="spacer"></span><button class="btn primary" data-act="go" data-step="1">Start the drill</button></div>
+    </section>`;
+}
+
+// ---------- step 1: which box can't wait? ----------
+const ALERTS = [
+  { code: 'C184', level: 'crit', head: 'Reefer temp rising', meta: 'Critical in 30 min', kind: DRILL.focus.C184.label,
+    dl: [['Reefer', '−14.5 °C (set −18), rising 5 °C/h'], ['Customs', 'Hold'], ['Gate', 'No truck yet (held box)']] },
+  { code: 'C392', level: 'warn', head: 'Charges accumulating', meta: '+$100/hr', kind: DRILL.focus.C392.label,
+    dl: [['Truck', 'Waiting 70 min (1 h free)'], ['Last free day', 'Today'], ['Charges', '$100 per hour of waiting']] },
+  { code: 'C510', level: 'warn', head: 'Lane blocked', meta: '+20 min delay', kind: DRILL.focus.C510.label,
+    dl: [['Truck', 'Was in Lane 2 when it went down'], ['Waited', '5 min'], ['Delay', '+20 min until reassigned']] },
+];
+function stepTriage() {
+  const alerts = ALERTS.map(a => {
+    const open = S.open === a.code;
+    return `<div class="alert ${a.level} ${open ? 'open' : ''}">
+      <span class="stripe"></span>
+      <button class="body" data-act="open" data-code="${a.code}" aria-expanded="${open}" style="border:0;background:none;text-align:left">
+        <span class="code">${a.code} <span class="tag sim">SIM</span></span>
+        <span><b>${a.head}</b> · ${a.meta}</span><span class="meta">${a.kind}</span>
+      </button>
+      <span class="side"><span class="tag ${a.level}">${a.level === 'crit' ? 'CRITICAL' : 'WATCH'}</span></span>
+      ${open ? `<div class="detail"><dl>${a.dl.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+        <div class="row"><button class="btn primary small" data-act="pick" data-code="${a.code}">This one can’t wait</button></div></div>` : ''}
+    </div>`;
+  }).join('');
+  let verdict = '';
+  if (S.picked) {
+    const right = S.picked === 'C184';
+    const costs = ['C184', 'C392', 'C510'].map(c => `<div class="cost ${c === 'C184' ? 'top' : ''}"><span class="eyebrow">${c} · if nobody acts for 30 min</span>
+        <b>${money(TRI[c].cost)}</b><span style="font-size:13px">${esc(TRI[c].why)}</span></div>`).join('');
+    verdict = `<section class="panel">
+      <div class="verdict ${right ? 'good' : 'bad'}"><b>${right ? 'Right call. C184 is the only one that can’t be undone.' : S.picked + ' can wait. C184 can’t.'}</b>
+        <span>${right ? 'Fees and delays come back down. A load past its safe temperature stays lost.' : 'Its cost grows slowly and comes back down once handled. C184 crosses its safe temperature in 30 minutes, and a spoiled load stays spoiled.'}</span></div>
+      <div class="costs">${costs}</div>
+      <p style="font-size:13px;color:var(--muted)">Ranked by expected cost of waiting 30 minutes. C184: chance the load is rejected grows to 100% over 30 min past −12 °C, times a ${money(DRILL.focus.C184.value)} cargo value.</p>
+      <div class="row">${right ? '' : '<button class="btn" data-act="repick">Pick again</button>'}<span class="spacer"></span>
+        <button class="btn primary" data-act="go" data-step="2">Open C184’s four stories</button></div>
+    </section>`;
+  }
+  return `<section class="panel lede"><span class="eyebrow">10:30 · Lanes 2 and 3 down · ${BASE.trucks} trucks booked this shift</span>
+      <h1>Three boxes need attention. Which one can’t wait?</h1>
+      <p>Open each alert to see its situation, then pick the box that has to be handled first.</p></section>
+    <section class="panel"><div class="row"><h2>Active alerts</h2></div><div class="alerts">${alerts}</div></section>${verdict}`;
+}
+
+// ---------- step 2: one box, four stories ----------
+const SRC_NAMES = { carrier: 'Carrier manifest', scale: 'Terminal scale', customs: 'Customs', reefer: 'Reefer plug' };
+function stepStories() {
+  const st = DRILL.focus.C184.stories;
+  const all = Object.keys(st).every(k => S.trust[k]);
+  const cards = Object.entries(st).map(([k, v]) => {
+    const pick = S.trust[k];
+    const expected = v.trust === 'doubt' ? 'doubt' : 'trust';
+    const read = S.trustChecked ? `<div class="read ${pick === expected ? 'match' : 'miss'}"><b>PortAble: ${v.trust === 'binding' ? 'binding' : v.trust}.</b> ${esc(v.why)}</div>` : '';
+    return `<div class="story"><span class="src">${SRC_NAMES[k]}</span>
+      <span class="says ${k === 'carrier' ? '' : 'flag'}">${esc(v.says)}</span><span class="why">${esc(v.note)}</span>
+      <div class="seg" role="group" aria-label="Do you trust the ${SRC_NAMES[k]}?">
+        <button data-act="trust" data-src="${k}" data-v="trust" aria-pressed="${pick === 'trust'}" ${S.trustChecked ? 'disabled' : ''}>Trust</button>
+        <button data-act="trust" data-src="${k}" data-v="doubt" aria-pressed="${pick === 'doubt'}" ${S.trustChecked ? 'disabled' : ''}>Doubt</button></div>${read}</div>`;
+  }).join('');
+  const score = Object.entries(st).filter(([k, v]) => S.trust[k] === (v.trust === 'doubt' ? 'doubt' : 'trust')).length;
+  return `<section class="panel lede"><span class="eyebrow">C184 · one box, four stories <span class="tag sim">SIM</span></span>
+      <h1>Every source says something different. Which do you believe?</h1>
+      <p>The carrier says empty, the scale says heavy, customs has a hold and the plug says it’s warming. Mark each source before deciding.</p></section>
+    <section class="panel"><div class="stories">${cards}</div>
+      <div class="row">${S.trustChecked ? `<span><b>${score} of 4</b> match PortAble’s read. Physical readings from today beat paperwork from weeks ago, and the customs hold binds either way, so Release stays locked.</span>` : ''}
+        <span class="spacer"></span>
+        ${S.trustChecked ? '<button class="btn primary" data-act="go" data-step="3">Decide what to do</button>'
+          : `<button class="btn primary" data-act="check" ${all ? '' : 'disabled'}>Check against PortAble</button>`}</div></section>`;
+}
+
+// ---------- step 3: decide, with a forecast for every option ----------
+function stepDecide() {
+  const opts = OPTION_ORDER.map(a => {
+    const A = ACTIONS[a];
+    if (A.locked) return `<button class="opt" disabled aria-disabled="true"><span class="name">${A.short} <span class="tag mute">LOCKED</span></span><span class="d">${A.desc}</span></button>`;
+    const o = FC.options[a];
+    const tempBad = o.temp30 >= DRILL.limitC;
+    return `<button class="opt" data-act="choose" data-a="${a}" aria-pressed="${S.action === a}">
+      <span class="name">${A.short}${FC.suggested === a ? ' <span class="tag sugg">PORTABLE SUGGESTS</span>' : ''}</span>
+      <span class="d">${A.desc}</span>
+      <dl><dt>C184 at 11:00</dt><dd class="${tempBad ? 'bad' : 'good'}">${tC(o.temp30)}</dd>
+        <dt>Expected cargo claim</dt><dd class="${o.cargoLoss ? 'bad' : 'good'}">${o.cargoLoss ? money(o.cargoLoss) : 'none'}</dd>
+        <dt>Gate queue at 11:00</dt><dd class="${o.congestion > 5 ? 'bad' : ''}">${sign(o.congestion)}%</dd>
+        <dt>Avg truck wait</dt><dd class="${o.delayMin > 5 ? 'bad' : ''}">${sign(o.delayMin)} min</dd>
+        <dt>Customs hold</dt><dd>${o.holdCleared ? 'exam done ' + o.holdCleared : 'stays on'}</dd></dl></button>`;
+  }).join('');
+  const appr = S.action ? `<section class="panel"><div class="row"><h3>PortAble also wants to</h3><span class="spacer"></span><span class="eyebrow">You approve or reject each call</span></div>
+      <div class="approvals">
+        ${approveRow('C510', 'Reassign C510’s truck from dead Lane 2 to Lane 1', 'approveC510')}
+        ${approveRow('C392', 'Move C392 to the next free slot (last free day today, truck already paying)', 'approveC392')}
+      </div>
+      <div class="row"><span class="spacer"></span><button class="btn primary" data-act="run">Commit and run 30 minutes</button></div></section>` : '';
+  return `<section class="panel lede"><span class="eyebrow">10:30 · C184 · what would you do?</span>
+      <h1>PortAble ran the rest of the shift once for every option.</h1>
+      <p>Each card shows where things stand at 11:00. Queue and wait are compared with leaving C184 alone. Pick one; you can still overrule PortAble.</p></section>
+    <section class="panel"><div class="options">${opts}</div></section>${appr}`;
+}
+function approveRow(code, text, key) {
+  return `<div class="approve"><span><b class="mono">${code}</b> · ${text}</span>
+    <div class="seg" role="group" aria-label="${code}"><button data-act="approve" data-k="${key}" data-v="1" aria-pressed="${S[key]}">Approve</button>
+    <button data-act="approve" data-k="${key}" data-v="0" aria-pressed="${!S[key]}">Reject</button></div></div>`;
+}
+
+// ---------- step 4: +30 minutes ----------
+function thermoSVG(temp) {
+  const lo = -20, hi = -6, y = v => 190 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * 170;
+  const ly = y(DRILL.limitC), ty = y(temp), over = temp >= DRILL.limitC;
+  return `<svg viewBox="0 0 130 210" role="img" aria-label="C184 temperature ${tC(temp)}">
+    <rect x="44" y="16" width="22" height="178" rx="11" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/>
+    <rect x="49" y="${ty}" width="12" height="${190 - ty}" rx="6" fill="${over ? 'var(--crit)' : 'var(--live)'}"/>
+    <line x1="36" x2="90" y1="${ly}" y2="${ly}" stroke="var(--crit)" stroke-width="2" stroke-dasharray="4 3"/>
+    <text x="92" y="${ly + 4}" font-size="11" fill="var(--crit)" font-family="IBM Plex Mono, monospace">limit</text>
+    <text x="38" y="${y(-18) + 4}" font-size="11" text-anchor="end" fill="var(--muted)" font-family="IBM Plex Mono, monospace">−18</text>
+    <text x="38" y="${ly + 4}" font-size="11" text-anchor="end" fill="var(--muted)" font-family="IBM Plex Mono, monospace">−12</text>
+    <text x="38" y="${y(-8) + 4}" font-size="11" text-anchor="end" fill="var(--muted)" font-family="IBM Plex Mono, monospace">−8</text>
+  </svg>`;
+}
+function stepRun() {
+  const run = S.run, t = S.runIdx * STEP;
+  const temp = c184Temp(run, DRILL, t);
+  const log = run.events.filter(e => e[0] <= t && e[0] >= T0).map(e => `<li><span>${clockAt(e[0])}</span><span>${esc(e[1])}</span></li>`).join('');
+  const done = S.runIdx >= (T0 + 30) / STEP;
+  return `<section class="panel lede"><span class="eyebrow">You chose: ${ACTIONS[S.action].label}</span>
+      <h1>${done ? '11:00. Here’s where things landed.' : 'Running the next 30 minutes…'}</h1></section>
+    <section class="panel"><div class="runwrap">
+      <div class="thermo"><span class="eyebrow">C184 return air</span>${thermoSVG(temp)}<b>${tC(temp)}</b></div>
+      <div style="display:grid;gap:12px;align-content:start;min-width:0"><span class="eyebrow">Shift log</span><ul class="log">${log}</ul></div>
+    </div></section>${done ? outcomeHTML() : ''}`;
+}
+function outcomeHTML() {
+  const run = S.run, c = run.boxes.find(b => b.code === 'C184');
+  const temp = c184Temp(run, DRILL, T0 + 30);
+  const q = tt => run.timeline[tt / STEP].queue, qb = tt => BASE.timeline[tt / STEP].queue;
+  const cong = qb(T0 + 30) ? Math.round((q(T0 + 30) - qb(T0 + 30)) / qb(T0 + 30) * 100) : 0;
+  const delay = Math.round(run.avgWait - BASE.avgWait);
+  const lost = c.loss, cls = lost === 0 ? 'good' : lost >= c.value ? 'bad' : 'mid';
+  const head = lost === 0 ? 'C184 cargo protected' : lost >= c.value ? 'C184 cargo lost' : 'C184 cargo at risk';
+  const sub = lost === 0 ? 'Temperature back under control and falling.' : `Expected claim by end of shift: ${money(lost)}.`;
+  const b392 = run.boxes.find(b => b.code === 'C392'), b510 = run.boxes.find(b => b.code === 'C510');
+  const fee392 = Math.max(0, ((b392.exit ?? STEPS * STEP) - b392.arrive) - LA.freeWaitMin) / 60 * LA.truckWaitPerHour;
+  return `<section class="panel outcome">
+      <div class="outhead ${cls}"><b>${head}</b><span>${sub}</span></div>
+      <div class="stats">
+        <div class="stat"><span class="eyebrow">C184 at 11:00</span><b>${tC(temp)}</b></div>
+        <div class="stat"><span class="eyebrow">Gate queue vs. waiting</span><b>${sign(cong)}%</b></div>
+        <div class="stat"><span class="eyebrow">Avg truck wait</span><b>${sign(delay)} min</b></div>
+        <div class="stat"><span class="eyebrow">Customs hold</span><b>${c.examEnd !== null ? 'Exam ' + clockAt(c.examEnd) : 'Still on'}</b></div>
+      </div>
+      <div class="tablewrap"><table><thead><tr><th>Box</th><th>What happened</th><th class="num">Out of the gate</th><th class="num">Waiting charges</th></tr></thead><tbody>
+        <tr><td class="mono">C392</td><td>${S.approveC392 ? 'Moved to the next free slot' : 'Left in arrival order'}</td><td class="num">${b392.exit !== null ? clockAt(b392.exit) : 'not today'}</td><td class="num">${money(fee392)}</td></tr>
+        <tr><td class="mono">C510</td><td>${S.approveC510 ? 'Reassigned to Lane 1' : 'Waited for Lane 2 (+20 min)'}</td><td class="num">${b510.exit !== null ? clockAt(b510.exit) : 'not today'}</td><td class="num">${money(Math.max(0, ((b510.exit ?? STEPS * STEP) - b510.arrive) - LA.freeWaitMin) / 60 * LA.truckWaitPerHour)}</td></tr>
+      </tbody></table></div>
+      <div class="row"><button class="btn" data-act="go" data-step="3">Try another option</button><span class="spacer"></span><button class="btn primary" data-act="go" data-step="5">See the shift report</button></div>
+    </section>`;
+}
+
+// ---------- step 5: shift report + benchmark ----------
+function stepReport() {
+  const mine = S.run || runShift(LA, 'portable', SEED, { drill: DRILL, action: FC.suggested });
+  const rows = [
+    ['Your shift (PortAble + your calls)', mine, true],
+    ['First come, first served', runShift(LA, 'fcfs', SEED, { drill: DRILL, action: 'wait' })],
+    ['Hold everything', runShift(LA, 'hold', SEED, { drill: DRILL, action: 'holdGate' })],
+  ];
+  const best = k => Math.min(...rows.map(r => r[1][k])), most = k => Math.max(...rows.map(r => r[1][k]));
+  const mark = (v, b) => v === b ? ` <span class="best">●</span>` : '';
+  const table = rows.map(([n, r, me]) => `<tr class="${me ? 'me' : ''}"><td>${n}</td>
+      <td class="num">${money(r.spoiled)}${mark(r.spoiled, best('spoiled'))}</td><td class="num">${money(r.fees)}${mark(r.fees, best('fees'))}</td>
+      <td class="num">${Math.round(r.avgWait)} min${mark(r.avgWait, best('avgWait'))}</td><td class="num">${r.out} of ${r.trucks}${mark(r.out, most('out'))}</td></tr>`).join('');
+
+  const P = PROFILES[S.profile];
+  if (!S.bench[S.profile]) S.bench[S.profile] = benchmark(P, 300);
+  const B = S.bench[S.profile], max = Math.max(...Object.values(B.res).map(x => x.total));
+  const order = Object.keys(POLICIES).sort((a, c) => B.res[a].total - B.res[c].total);
+  const bars = order.map(p => `<div class="barrow ${p === 'portable' ? 'me' : ''}"><span>${POLICIES[p].name}</span>
+      <span class="bartrack"><span class="barfill" style="width:${Math.max(1, B.res[p].total / max * 85).toFixed(1)}%"></span><span class="barval">${money(B.res[p].total)}</span></span></div>`).join('');
+  const btable = order.map(p => { const x = B.res[p]; return `<tr class="${p === 'portable' ? 'me' : ''}"><td>${POLICIES[p].name}</td>
+      <td class="num">${money(x.spoiled)}</td><td class="num">${money(x.fees)}</td><td class="num">${Math.round(x.avgWait)} min</td><td class="num">${x.out.toFixed(0)}</td><td class="num">${money(x.p90)}</td></tr>`; }).join('');
+  const srcs = SOURCES_NOTE.map(([a, b, c]) => `<div><span>${a}</span><span class="mono">${b}</span><span>${c}</span></div>`).join('');
+  return `<section class="panel lede"><span class="eyebrow">14:00 · End of shift</span><h1>Shift report</h1>
+      <p>The same outage, the same trucks, run three ways. Cargo claims are expected values; fees are truck waiting time plus demurrage on boxes that miss their last free day.</p></section>
+    <section class="panel"><div class="row"><h2>This drill</h2><span class="spacer"></span><span class="tag sim">SIM</span></div>
+      <div class="tablewrap"><table><thead><tr><th>Plan</th><th class="num">Cargo claims</th><th class="num">Fees</th><th class="num">Avg truck wait</th><th class="num">Trucks out</th></tr></thead><tbody>${table}</tbody></table></div>
+      <p style="font-size:13px;color:var(--muted)">● best in column. Without PortAble, a failing reefer is found on the next manual plug check; with it, the plug sensor and the scale are reconciled as soon as the box lands.</p></section>
+    <section class="panel">
+      <div class="row"><h2>Across ${B.n} simulated outages</h2><span class="spacer"></span>
+        <div class="seg" role="group" aria-label="Port profile">${Object.entries(PROFILES).map(([k, v]) => `<button data-act="profile" data-p="${k}" aria-pressed="${S.profile === k}">${v.short === 'LA' ? 'Los Angeles' : 'Tianjin'}</button>`).join('')}</div></div>
+      <p>Random truck arrivals, problem boxes and reefer faults each run, same lane outage. Bars show the average total cost per shift (cargo claims plus fees).</p>
+      <div class="bars">${bars}</div>
+      <div class="tablewrap"><table><thead><tr><th>Policy</th><th class="num">Cargo claims</th><th class="num">Fees</th><th class="num">Avg wait</th><th class="num">Trucks out</th><th class="num">Bad day (90th pct)</th></tr></thead><tbody>${btable}</tbody></table></div>
+      <div class="verdict"><b>${P.name}</b><span>Data source: ${P.dataSource}. ${P.illustrative ? 'Tianjin parameters are illustrative placeholders, not sourced. The point: the engine is port-agnostic; only the data adapter and the tariff numbers change.' : 'Parameters below. The engine is the same at any port; outside North America the data adapter changes from Terminal49 to the local port community system.'}</span></div>
+    </section>
+    <section class="panel"><h3>Where the numbers come from</h3><div class="srcs">${srcs}</div>
+      <p style="font-size:13px;color:var(--muted)">A small model for comparing plans, not a forecast of a real terminal. Every assumption is listed so it can be replaced with a terminal’s own data.</p></section>
+    <section class="panel"><div class="row"><button class="btn" data-act="go" data-step="0">Back to inbound watch</button><span class="spacer"></span><button class="btn primary" data-act="restart">Run the drill again</button></div></section>`;
+}
+
+// ---------- render + events ----------
+function render() {
+  $('#steps').innerHTML = UI_STEPS.map((n, i) => `<li class="${i < S.step ? 'done' : i === S.step ? 'now' : ''}" ${i === S.step ? 'aria-current="step"' : ''}><span>${n}</span></li>`).join('');
+  const [t, tl] = gateState();
+  $('#gate').innerHTML = gateHTML(t, tl);
+  $('#clock').textContent = DRILL.date + ' · ' + clockAt(t);
+  const views = [stepShift, stepTriage, stepStories, stepDecide, stepRun, stepReport];
+  $('#stage').innerHTML = views[S.step]();
+}
+function go(step) {
+  if (S.timer) { clearInterval(S.timer); S.timer = null; }
+  S.step = step; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function startRun() {
+  S.run = runShift(LA, 'portable', SEED, { drill: DRILL, action: S.action, approveOthers: S.approveC510, noBump: !S.approveC392 });
+  S.runIdx = T0 / STEP; go(4);
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) { S.runIdx = (T0 + 30) / STEP; render(); return; }
+  S.timer = setInterval(() => {
+    S.runIdx++; render();
+    if (S.runIdx >= (T0 + 30) / STEP) { clearInterval(S.timer); S.timer = null; }
+  }, 650);
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const a = b.dataset.act;
+  if (a === 'go') return go(+b.dataset.step);
+  if (a === 'open') { S.open = S.open === b.dataset.code ? null : b.dataset.code; return render(); }
+  if (a === 'pick') { S.picked = b.dataset.code; return render(); }
+  if (a === 'repick') { S.picked = null; S.open = 'C184'; return render(); }
+  if (a === 'trust') { S.trust[b.dataset.src] = b.dataset.v; return render(); }
+  if (a === 'check') { S.trustChecked = true; return render(); }
+  if (a === 'choose') { S.action = b.dataset.a; return render(); }
+  if (a === 'approve') { S[b.dataset.k] = b.dataset.v === '1'; return render(); }
+  if (a === 'run') return startRun();
+  if (a === 'profile') { S.profile = b.dataset.p; return render(); }
+  if (a === 'restart') { Object.assign(S, { open: null, picked: null, trust: {}, trustChecked: false, action: null, approveC510: true, approveC392: true, run: null }); return go(1); }
+});
+
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'trackForm') return;
+  e.preventDefault();
+  const number = $('#tNum').value.trim(), type = $('#tType').value, scac = $('#tScac').value.trim().toUpperCase();
+  S.form = { number, type, scac };
+  if (!/^[A-Za-z0-9]{4,20}$/.test(number)) { S.track = { ok: false, error: 'Enter a bill of lading, booking or container number (letters and digits only).' }; return render(); }
+  if (scac && !/^[A-Z]{4}$/.test(scac)) { S.track = { ok: false, error: 'Carrier code is four letters, like COSU for COSCO. Leave it blank to let Terminal49 detect it.' }; return render(); }
+  S.tracking = true; S.track = null; render();
+  try {
+    const r = await fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_type: type, request_number: number, scac: scac || undefined }) });
+    const j = await r.json().catch(() => null);
+    if (!j) throw new Error('no json');
+    S.track = j.ok ? j : { ok: false, error: 'Terminal49: ' + (j.error || 'request refused') + (j.status ? ' (HTTP ' + j.status + ')' : '') };
+  } catch (err) {
+    S.track = { ok: false, error: 'This copy can’t reach the PortAble server, so no request was sent. Live tracking works on the deployed app.' };
+  }
+  S.tracking = false; render();
+});
+
+render();
+
+</script>
+</body>
+</html>
